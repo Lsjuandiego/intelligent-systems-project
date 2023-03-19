@@ -2,76 +2,117 @@ package AStarPathFinding;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Scanner;
 
 
-public class Panel extends JPanel  {
+public class ReadFile extends JFrame implements ActionListener {
 
-    ReadFile readFile = new ReadFile();
-
-    //los nodos serán los bloques
-    //screen settings
-    final int maxCol = 15;
-    final int maxRow = 10;
-    final int nodeSize = 70;
-    final int screenWidth = nodeSize * maxCol;
-    final int screenHeight = nodeSize * maxRow;
+    private int maxCol;
+    private int maxRow;
 
 
     //Node
-    Node[][] node = new Node[maxCol][maxRow];
     Node startNode, goalNode, currentNode;
     ArrayList<Node> openList = new ArrayList<>();
     ArrayList<Node> checkedList = new ArrayList<>();
 
     //Objetivo alcanzado?
     boolean goalReached = false;
+    private final JButton selectFileButton;
+    private final JPanel matrixPanel;
 
-    /**
-     * Ventana
-     */
 
-    public Panel() {
-        this.setPreferredSize(new Dimension(screenWidth, screenHeight));
-        this.setBackground(Color.black);
-        this.setLayout(new GridLayout(maxRow, maxCol));
-        this.addKeyListener(new KeyHandler(this));
-        this.setFocusable(true);
+    public ReadFile() {
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setLayout(new BorderLayout());
 
-        //Place nodes
-        int col = 0;
-        int row = 0;
+        selectFileButton = new JButton("Select File");
+        selectFileButton.addActionListener(this);
+        add(selectFileButton, BorderLayout.NORTH);
 
-        while (col <maxCol && row <maxRow){
-            node[col][row] = new Node(col,row);
-            this.add(node[col][row]);
-            col++;
+        matrixPanel = new JPanel();
+        matrixPanel.setLayout(new GridLayout(0, 7));
+        add(new JScrollPane(matrixPanel), BorderLayout.CENTER);
 
-            if (col == maxCol) {
-                col = 0;
-                row++;
+        pack();
+        setVisible(true);
+    }
+
+    @Override
+    public void actionPerformed(ActionEvent e) {
+        if (e.getSource() == selectFileButton) {
+            JFileChooser fileChooser = new JFileChooser(".");
+            int selected = fileChooser.showOpenDialog(this);
+            if (selected == JFileChooser.APPROVE_OPTION) {
+                File file = fileChooser.getSelectedFile();
+                System.out.println("File path: " + file.getAbsolutePath());
+                Node[][] matrix = readFromFile(file);
+                displayMatrix(matrix);
             }
         }
-        //set start and goal node
-        setStartNode(3,6);
-        setGoalNode(11,3);
-        //solid nodes
-        setSolidNode(10,2);
-        setSolidNode(10,3);
-        setSolidNode(10,4);
-        setSolidNode(10,5);
-        setSolidNode(10,6);
-        setSolidNode(10,7);
-        setSolidNode(6,2);
-        setSolidNode(7,2);
-        setSolidNode(8,2);
-        setSolidNode(9,2);
-        setSolidNode(11,7);
-        setSolidNode(12,7);
-        setSolidNode(6,1);
+    }
 
-        //set cost
-        setCostOnNodes();
+    private Node[][] readFromFile(File file) {
+        try (Scanner scanner = new Scanner(file)) {
+            List<List<Character>> matrix = new ArrayList<>();
+            while (scanner.hasNextLine()) {
+                String line = scanner.nextLine();
+                String[] cells = line.split("[^a-zA-Z]");
+                List<Character> row = new ArrayList<>();
+                for (String cell : cells) {
+                    if (!cell.isEmpty()) {
+                        row.add(cell.charAt(0));
+                    }
+                }
+                matrix.add(row);
+            }
+
+            Node[][] nodes = new Node[matrix.size()][];
+            for (int i = 0; i < matrix.size(); i++) {
+                List<Character> row = matrix.get(i);
+                nodes[i] = new Node[row.size()];
+                for (int j = 0; j < row.size(); j++) {
+                    Node node = new Node(i, j);
+                    node.setValue(row.get(j));
+                    nodes[i][j] = node;
+
+                    switch (row.get(j)) {
+                        case 'I' -> setStartNode(nodes, i, j);
+                        case 'F' -> setGoalNode(nodes, i, j);
+                        case 'R', 'M' -> setSolidNode(nodes, i, j);
+                    }
+                }
+            }
+
+            return nodes;
+        } catch (FileNotFoundException ex) {
+            ex.printStackTrace();
+            return null;
+        }
+    }
+
+    public void displayMatrix(Node[][] matrix) {
+        matrixPanel.removeAll();
+        matrixPanel.setLayout(new GridLayout(matrix.length, matrix[0].length));
+        maxCol = matrix.length;
+        maxRow = matrix[0].length;
+
+        for (int row = 0; row < matrix.length; row++) {
+            for (int col = 0; col < matrix[row].length; col++) {
+                Node node = matrix[row][col];
+
+                matrixPanel.add(node);
+            }
+        }
+        setCostOnNodes(matrix);
+        autoSearch(matrix);
+        pack();
     }
 
     /***
@@ -79,18 +120,17 @@ public class Panel extends JPanel  {
      * @param col
      * @param row
      */
-    private void setStartNode(int col, int row){
+    private void setStartNode(Node[][] node,int col, int row){
         node[col][row].setAsStart();
         startNode = node[col][row];
         currentNode = startNode;
     }
-
     /***
      * Asignación nodo final
      * @param col
      * @param row
      */
-    private void setGoalNode(int col, int row){
+    private void setGoalNode(Node[][] node, int col, int row){
         node[col][row].setAsGoal();
         goalNode = node[col][row];
     }
@@ -100,14 +140,14 @@ public class Panel extends JPanel  {
      * @param col
      * @param row
      */
-    private void setSolidNode(int col, int row){
+    private void setSolidNode(Node[][] node, int col, int row){
         node[col][row].setAsSolid();
     }
 
     /***
      * Da costo de los nodos
      */
-    private void setCostOnNodes(){
+    private void setCostOnNodes(Node[][] node){
         int col = 0 , row = 0;
         while (col <maxCol && row <maxRow){
             getCost(node[col][row]);
@@ -120,8 +160,6 @@ public class Panel extends JPanel  {
         }
 
     }
-
-
     /***
      * Metodo para calcular los costos de los nodos
      * @param node
@@ -147,11 +185,20 @@ public class Panel extends JPanel  {
             node.setText("<html>F:" + node.fCost + "<br>G:" + node.gCost + "</html>");
         }
     }
-
     /***
-     * Busqueda automatica del camino (A*)
+     * Verificar si el nodo no está abierto aun para agregarlo
+     * a la lista
+     * @param node
      */
-    public void autoSearch(){
+    private void openNode(Node node){
+        if (!node.open && !node.checked && !node.solid){
+            //if the node is not open yet, add it to the open list
+            node.setAsOpen();
+            node.parent = currentNode;
+            openList.add(node);
+        }
+    }
+    public void autoSearch(Node[][] node){
         while (!goalReached){
             int col = currentNode.col;
             int row = currentNode.row;
@@ -202,73 +249,6 @@ public class Panel extends JPanel  {
             }
         }
     }
-    public void search(){
-        if (!goalReached){
-            int col = currentNode.col;
-            int row = currentNode.row;
-
-            currentNode.setAsChecked();
-            checkedList.add(currentNode);
-            openList.remove(currentNode);
-
-            //open the up node
-            if(row-1 >=0){
-                openNode(node[col][row-1]);
-            }
-            //open the left node
-            if(col-1 >= 0){
-                openNode(node[col-1][row]);
-            }
-            //open the down node
-            if (row+1 < maxRow){
-                openNode(node[col][row+1]);
-            }
-
-            //open the right node
-            if(col+1 < maxCol){
-                openNode(node[col+1][row]);
-            }
-            // find the best node
-            int bestNodeIndex = 0;
-            int bestNodeFCost = 999;
-
-            for (int i = 0; i < openList.size(); i++) {
-                //check if this nodes F cost is better
-                if(openList.get(i).fCost < bestNodeFCost){
-                    bestNodeIndex = i;
-                    bestNodeFCost = openList.get(i).fCost;
-                }
-                //if F cost is equal, check the G cost
-                else if (openList.get(i).fCost == bestNodeFCost) {
-                    if(openList.get(i).gCost < openList.get(bestNodeIndex).gCost){
-                        bestNodeIndex = i;
-                    }
-                }
-            }
-            //after the loop, we get the best node wich is our next step
-            currentNode = openList.get(bestNodeIndex);
-            if(currentNode == goalNode){
-                goalReached = true;
-
-                trackThePath();
-
-            }
-        }
-    }
-
-    /***
-     * Verificar si el nodo no está abierto aun para agregarlo
-     * a la lista
-     * @param node
-     */
-    private void openNode(Node node){
-        if (!node.open && !node.checked && !node.solid){
-            //if the node is not open yet, add it to the open list
-            node.setAsOpen();
-            node.parent = currentNode;
-            openList.add(node);
-        }
-    }
 
     /***
      * Marca el mejor camino
@@ -285,5 +265,4 @@ public class Panel extends JPanel  {
             }
         }
     }
-
 }

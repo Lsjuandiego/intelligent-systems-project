@@ -16,12 +16,12 @@ public class KeyHandler implements KeyListener {
     @Override
     public void keyPressed(KeyEvent e) {
         int code = e.getKeyCode();
-        System.out.println(code);
+        //System.out.println(code);
         if(code == KeyEvent.VK_ENTER){
-            System.out.println(code);
-            System.out.println("Enter");
-            panel.search();
-           // panel.autoSearch();
+//            System.out.println(code);
+//            System.out.println("Enter");
+           // panel.search();
+            panel.autoSearch();
         }
     }
 
